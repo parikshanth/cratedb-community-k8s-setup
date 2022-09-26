@@ -23,7 +23,7 @@ This configuration is done to prevent any external access to the crate cluster, 
 
 use the crash command line management utility to create a user and assign permissions 
 
-`
+``` bash
 crash
 
 create user crateadmin with (password = '<password>');
@@ -32,7 +32,7 @@ grant DQL to crateadmin;
 grant DDL to crateadmin;
 grant DML to crateadmin;
 
-`
+```
 
 ## coming up
 a application repo to connect and use this cluster
