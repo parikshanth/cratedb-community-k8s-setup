@@ -5,6 +5,7 @@ use the 2 phase build dockerfile to build the community edition of crate, this u
 `docker build -t <image_name> .`
 
 Test the working image using
+
 `docker run -d --publish 4200:4200 --publish 5432:5432 <image_name> -Cdiscovery.type=single-node`
 
 ### Run on Kubernetes
