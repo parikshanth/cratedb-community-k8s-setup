@@ -1,4 +1,4 @@
-# Building a docker container with the community edition of crate
+# Building a docker container with the community edition of CrateDB and run it as a cluster in kubernetes
 
 use the 2 phase build dockerfile to build the community edition of crate, this us using the previous stable version of 4.8
 
