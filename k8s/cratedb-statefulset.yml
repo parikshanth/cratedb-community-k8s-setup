@@ -1,0 +1,106 @@
+kind: StatefulSet
+apiVersion: "apps/v1"
+metadata:
+  # This is the name used as a prefix for all pods in the set.
+  name: crate
+spec:
+  serviceName: "crate-set"
+  # Our cluster has three nodes.
+  replicas: 5
+  selector:
+    matchLabels:
+      # The pods in this cluster have the `app:crate` app label.
+      app: crate
+  template:
+    metadata:
+      labels:
+        app: crate
+    spec:
+      # InitContainers run before the main containers of a pod are
+      # started, and they must terminate before the primary containers
+      # are initialized. Here, we use one to set the correct memory
+      # map limit.
+      initContainers:
+      - name: init-sysctl
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      # This final section is the core of the StatefulSet configuration.
+      # It defines the container to run in each pod.
+      containers:
+      - name: crate
+        # Use the CrateDB 4.2.4 Docker image.
+        image: parikshanth/crate-community-4.8:sec
+        # Pass in configuration to CrateDB via command-line options.
+        # We are setting the name of the node's explicitly, which is
+        # needed to determine the initial master nodes. These are set to
+        # the name of the pod.
+        # We are using the SRV records provided by Kubernetes to discover
+        # nodes within the cluster.
+        args:
+          - -Cnode.name=${POD_NAME}
+          - -Ccluster.name=${CLUSTER_NAME}
+          - -Ccluster.initial_master_nodes=crate-0,crate-1,crate-2,crate-3,crate-4
+          - -Cdiscovery.seed_providers=srv
+          - -Cdiscovery.srv.query=_crate-internal._tcp.crate-internal-service.${NAMESPACE}.svc.cluster.local
+          - -Cgateway.recover_after_data_nodes=3
+          - -Cgateway.expected_data_nodes=${EXPECTED_NODES}
+          - -Cpath.data=/data
+          - -Cauth.host_based.enabled=true
+          - -Cauth.host_based.config.a.user=crate
+          - -Cauth.host_based.config.a.address=127.0.0.1
+          - -Cauth.host_based.config.a.method=trust
+          - -Cauth.host_based.config.b.user=crate
+          - -Cauth.host_based.config.b.address=${MY_POD_IP}
+          - -Cauth.host_based.config.b.method=trust
+          #- -Cauth.host_based.config.${c}.user=appuser
+          #- -Cauth.host_based.config.${c}.method=password
+          #- -Cauth.host_based.config.${d}.user=readonly
+          - -Cauth.host_based.config.z.method=password
+        volumeMounts:
+              # Mount the `/data` directory as a volume named `data`.
+            - mountPath: /data
+              name: data
+        resources:
+          limits:
+            # How much memory each pod gets.
+            memory: 512Mi
+        ports:
+          # Port 4300 for inter-node communication.
+        - containerPort: 4300
+          name: crate-internal
+          # Port 4200 for HTTP clients.
+        - containerPort: 4200
+          name: crate-web
+          # Port 5432 for PostgreSQL wire protocol clients.
+        - containerPort: 5432
+          name: postgres
+        # Environment variables passed through to the container.
+        env:
+          # This is variable is detected by CrateDB.
+        - name: CRATE_HEAP_SIZE
+          value: "256m"
+          # The rest of these variables are used in the command-line
+          # options.
+        - name: EXPECTED_NODES
+          value: "5"
+        - name: CLUSTER_NAME
+          value: "my-crate"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      volumes:
+        - name: data
+          emptyDir:
+            medium: "Memory"
